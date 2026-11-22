@@ -1,0 +1,88 @@
+// 이 파일은 "프로토콜 버퍼 3 버전 문법"으로 작성했다는 선언입니다.
+syntax = "proto3";
+
+// 패킷들을 game이라는 이름 묶음으로 관리합니다. (이름 충돌 방지용)
+package game;
+
+// 변환된 Go 코드의 패키지 이름을 main으로 하고, 현재 폴더에 만들라는 뜻입니다.
+option go_package = "./;main";
+
+// 유니티(C#)용 코드를 만들 때 사용할 네임스페이스(이름 묶음)입니다.
+option csharp_namespace = "GameProtocol";
+
+// [로그인 요청] 유니티 -> 서버: "이 기기로 로그인할게요"
+message LoginRequest {
+  // 기기마다 다른 고유 번호입니다.
+  string device_id = 1;
+}
+
+// [로그인 응답] 서버 -> 유니티: "결과는 이렇습니다"
+message LoginResponse {
+  // 로그인 성공 여부입니다. true면 성공, false면 실패입니다.
+  bool success = 1;
+  // 서버가 이 유저에게 붙여 준 고유 플레이어 번호입니다.
+  int64 player_id = 2;
+  // 결과 안내 문구입니다. (예: "로그인 성공")
+  string message = 3;
+  // 서버가 발급하는 입장 팔찌(세션 토큰)입니다. 웹소켓 접속 때 제출해야 합니다.
+  string session_token = 4;
+}
+
+// [3D 좌표] X, Y, Z 위치 값을 하나로 묶은 보조 양식입니다.
+message Vector3 {
+  // 좌우 위치입니다.
+  float x = 1;
+  // 위아래(높이) 위치입니다.
+  float y = 2;
+  // 앞뒤 위치입니다.
+  float z = 3;
+}
+
+// [이동 동기화] 유니티 -> 서버: "내 위치는 여기예요" (서버는 이 값을 방의 칠판에 적습니다)
+message MoveSync {
+  // 움직인 캐릭터의 플레이어 번호입니다. (서버는 이 값을 믿지 않고 토큰으로 확인한 번호를 씁니다)
+  int64 player_id = 1;
+  // 캐릭터의 현재 3D 좌표입니다.
+  Vector3 position = 2;
+}
+
+// [플레이어 상태] 한 명의 플레이어 번호와 최신 위치를 묶은 양식입니다. (스냅샷 안에 여러 개 들어갑니다)
+message PlayerState {
+  // 이 상태의 주인인 플레이어 번호입니다.
+  int64 player_id = 1;
+  // 이 플레이어의 가장 최근 위치입니다.
+  Vector3 position = 2;
+}
+
+// [방 스냅샷] 서버 -> 유니티: 방 안 "모든 사람"의 최신 위치 목록을 한 번에 묶은 패킷입니다.
+message RoomSnapshot {
+  // 방에 있는 모든 플레이어의 상태 목록입니다. (repeated = 여러 개)
+  repeated PlayerState players = 1;
+}
+
+// [플레이어 입장] 서버 -> 유니티: "새 사람이 방에 들어왔어요" (캐릭터 생성용)
+message PlayerEnter {
+  // 새로 들어온 플레이어 번호입니다.
+  int64 player_id = 1;
+  // 입장 시점의 위치입니다.
+  Vector3 position = 2;
+}
+
+// [플레이어 퇴장] 서버 -> 유니티: "그 사람은 완전히 나갔어요" (캐릭터 삭제용)
+message PlayerLeave {
+  // 완전히 나간 플레이어 번호입니다.
+  int64 player_id = 1;
+}
+
+// [서버 패킷 포장지] 서버 -> 유니티로 가는 모든 패킷은 이 포장지에 담깁니다.
+// oneof = "아래 3가지 중 딱 하나만 들어 있다"는 뜻입니다. 유니티는 무엇이 들어 있는지 보고 처리합니다.
+message ServerMessage {
+  oneof payload {
+    // 방 전체 위치 목록입니다.
+    RoomSnapshot snapshot = 1;
+    // 새 플레이어 입장 알림입니다.
+    PlayerEnter enter = 2;
+    // 플레이어 퇴장 알림입니다.
+    PlayerLeave leave = 3;
+  }
+}
